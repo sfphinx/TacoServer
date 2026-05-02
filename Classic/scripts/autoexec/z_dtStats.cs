@@ -5138,6 +5138,7 @@ function dtStatsClientLeaveGame(%client){
 }
 function dtStatsGameOver( %game ){
    if($dtStats::debugEchos){error("dtStatsGameOver");}
+   dtStatsFlushArmorTimers();
    $dtStats::serverHang = $dtStats::hostHang = 0;
    $dtStats::LastMissionDN = $MissionDisplayName;
    $dtStats::LastMissionCM = $CurrentMission;
@@ -6926,6 +6927,11 @@ function resetDtStats(%dtStats,%game,%slow){
          %var = $dtStats::unused[%i];
          %dtStats.stat[%var]= 0;
       }
+      %dtStats.armorTrackingActive = 0;
+      %dtStats.lastArmor = 0;
+      %dtStats.ArmorTime["Light"] = 0;
+      %dtStats.ArmorTime["Medium"] = 0;
+      %dtStats.ArmorTime["Heavy"] = 0;
    }
 }
 function buildVarList(){
@@ -6976,6 +6982,19 @@ function buildVarList(){
 //Stats Collecting
 ////////////////////////////////////////////////////////////////////////////////
 function armorTimer(%dtStats, %size, %death){
+   if(!isGameRun()){
+      %dtStats.armorTrackingActive = 0;
+      if(!%death){
+         %dtStats.lastArmor = %size;
+      }
+      return;
+   }
+   if(!%dtStats.armorTrackingActive){
+      %dtStats.armorTrackingActive = 1;
+      if(%dtStats.lastArmor !$= 0){
+         %dtStats.ArmorTime[%dtStats.lastArmor] = getSimTime();
+      }
+   }
    if(%dtStats.lastArmor $= "Light" && %dtStats.ArmorTime[%dtStats.lastArmor] > 0){
       %dtStats.stat["lArmorTime"] += ((getSimTime() - %dtStats.ArmorTime[%dtStats.lastArmor])/1000)/60;
       %dtStats.ArmorTime[%dtStats.lastArmor] = 0;
@@ -6996,6 +7015,19 @@ function armorTimer(%dtStats, %size, %death){
       %dtStats.lastArmor = %size;
    }
    //error(%dtStats.stat["lArmorTime"] SPC %dtStats.stat["mArmorTime"] SPC %dtStats.stat["hArmorTime"]);
+}
+
+function dtStatsFlushArmorTimers(){
+   if(!isObject(ClientGroup)){
+      return;
+   }
+   %count = ClientGroup.getCount();
+   for(%i = 0; %i < %count; %i++){
+      %cl = ClientGroup.getObject(%i);
+      if(isObject(%cl.dtStats)){
+         armorTimer(%cl.dtStats, 0, 1);
+      }
+   }
 }
 function updateTeamTime(%dtStats,%team){
    if(Game.numTeams > 1){
